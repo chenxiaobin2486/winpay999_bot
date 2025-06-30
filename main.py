@@ -1,46 +1,54 @@
 import os
+from dotenv import load_dotenv
+from flask import Flask, request
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     ContextTypes,
     MessageHandler,
-    filters
+    filters,
 )
+from handlers.command_parser import handle_command
+from utils.auth import is_authorized
 
-from handlers.command_parser import handle_message  # 确保路径正确
-from utils.auth import is_authorized                # 如果你有权限控制模块
-
-# 加载 .env 环境变量（需要 pip install python-dotenv）
-from dotenv import load_dotenv
+# 加载 .env 环境变量
 load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_PATH = f"/webhook/{BOT_TOKEN}"
+WEBHOOK_URL = f"https://winpay999.onrender.com{WEBHOOK_PATH}"  # ← 替换为你 Render 的域名
 
-# 从环境变量中读取 TOKEN
-BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+# 创建 Flask app 与 Telegram 应用
+flask_app = Flask(__name__)
+application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# 创建机器人应用
-app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-# 消息总路由器
+# 消息处理器
 async def message_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # 忽略非文本消息
     if not update.message or not update.message.text:
         return
-
-    # 忽略频道消息
-    if update.message.chat.type == "channel":
+    if not is_authorized(update):
         return
+    await handle_command(update, context)
 
-    # 可选：你也可以加权限检查
-    # if not is_authorized(update.effective_user.username):
-    #     return
+# 注册处理器
+application.add_handler(MessageHandler(filters.TEXT, message_router))
 
-    # 转交给主处理函数
-    await handle_message(update, context)
+# Flask 路由：Webhook 接收点
+@flask_app.route(WEBHOOK_PATH, methods=["POST"])
+def webhook_handler():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.update_queue.put(update)
+    return "ok"
 
-# 添加处理器：只处理文本、非命令消息
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_router))
+# Render 主页访问返回提示
+@flask_app.route("/", methods=["GET"])
+def index():
+    return "Telegram bot is running."
 
-# 启动机器人
-if __name__ == '__main__':
-    print("🤖 Bot is running...")
-    app.run_polling()
+# 设置 Webhook（只执行一次）
+@flask_app.before_first_request
+def setup_webhook():
+    application.bot.delete_webhook()
+    application.bot.set_webhook(url=WEBHOOK_URL)
+
+if __name__ == "__main__":
+    flask_app.run(port=5000)
