@@ -1,6 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from database.memory_db import db
+from utils.auth import is_authorized
 
 def is_operator(update: Update) -> bool:
     username = update.effective_user.username
