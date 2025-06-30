@@ -1,22 +1,18 @@
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
-from handlers import command_parser
+import logging
+from telegram.ext import ApplicationBuilder, MessageHandler, filters
 from config import TELEGRAM_TOKEN
+from handlers.command_parser import handle_message
 
-
-async def start(update, context):
-    await update.message.reply_text("✅ 机器人已启动，请发送指令。")
-
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 
 def run_bot():
-    # 创建 Application 实例
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    # 启动命令
-    app.add_handler(CommandHandler("start", start))
+    # 所有文本消息都会传给 handle_message 函数
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # 主指令处理器（处理文本消息）
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, command_parser.handle_message))
-
-    # 启动轮询
-    print("🤖 正在启动 Telegram Bot ...")
+    logging.info("🤖 机器人已启动")
     app.run_polling()
