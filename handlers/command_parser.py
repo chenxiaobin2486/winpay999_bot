@@ -17,6 +17,7 @@ from handlers.permissions import (
 from handlers.billing import add_entry
 from handlers.wallet_check import is_wallet_address
 from telegram import Update
+from utils.auth import is_authorized
 
 def parse_command(update: Update):
     message = update.effective_message
